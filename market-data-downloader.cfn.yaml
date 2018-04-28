@@ -1,0 +1,644 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template to build code pipeline, build and deploy lambdas from github
+Parameters:
+  ArtifactBucket:
+    Type: String
+    Default: foamdino-etl-pipeline-bucket
+    Description: Name of existing S3 bucket for storing pipeline artifacts
+  GitHubOwner:
+    Type: String
+    Default: SavvyPlus
+    Description: GitHub Repository Owner
+  GitHubRepo:
+    Type: String
+    Default: etl-marketdata-downloader
+    Description: GitHub repo name
+  GitHubBranch:
+    Type: String
+    Default: master
+    Description: GitHub repo branch
+  GitHubToken:
+    Type: String
+    Default: cbf2ecd03a1e59176995b6f727146584b67a2edd
+    Description: GitHub repo OAuth token
+  PipelineName:
+    Type: String
+    Description: Name of the pipeline to create
+    Default: 'test-marketdata-downloader-Pipeline'
+  Email:
+    Description: The email address where CodePipeline sends pipeline notifications
+    Default: 'foamdino@gmail.com'
+    Type: String
+  TestStackName:
+    Default: test-marketdata-downloader
+    Description: A name for the test stack
+    Type: String
+  TestStackConfig:
+    Default: test-market-data-downloader-stack-configuration.json
+    Description: The configuration file name for the test stack
+    Type: String
+  ProdStackName:
+    Default: prod-marketdata-downloader
+    Description: A name for the production stack
+    Type: String
+  ProdStackConfig:
+    Default: prod-market-data-downloader-stack-configuration.json
+    Description: The configuration file name for the production stack
+    Type: String
+  ChangeSetName:
+    Default: UpdateMarketdataDownloaderStack
+    Description: A name for the production PrecisForecast stack change set
+    Type: String
+  CleanupStackName:
+    Default: delete-test-files-market-data-downloader
+    Description: A name for the cleanup stack
+    Type: String
+  CreateDBChangeSet:
+    Default: CreateMarketdataDownloaderDBChangeSet
+    Description: A name for the production create database stack change set
+    Type: String
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "CodePipeline Settings"
+        Parameters:
+          - PipelineName
+          - Email
+
+Resources:
+
+  CFNRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [cloudformation.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'ec2:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'sqs:*'
+                  - 'iam:*'
+                  - 'lambda:*'
+                Effect: Allow
+                Resource: '*'
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codepipeline.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                - 's3:*'
+                - 'cloudformation:CreateStack'
+                - 'cloudformation:DescribeStacks'
+                - 'cloudformation:DeleteStack'
+                - 'cloudformation:UpdateStack'
+                - 'cloudformation:CreateChangeSet'
+                - 'cloudformation:ExecuteChangeSet'
+                - 'cloudformation:DeleteChangeSet'
+                - 'cloudformation:DescribeChangeSet'
+                - 'cloudformation:SetStackPolicy'
+                - 'codebuild:StartBuild'
+                - 'codebuild:BatchGetBuilds'
+                - 'iam:PassRole'
+                - 'sns:Publish'
+                Effect: Allow
+                Resource: '*'
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    DependsOn: CloudFormationRole
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+      Policies:
+        - PolicyName: ServiceRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudWatchWriteLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Sid: S3GetObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: '*'
+              - Sid: S3PutObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: '*'
+
+  CodePipelineSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref Email
+          Protocol: email
+
+  CodeBuildDownloaderLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildDownloaderLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'data-downloader/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  CodeBuildHarvesterLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildHarvesterLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'data-harvester/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  CodeBuildMarketdataDownloaderPartitionLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildMarketDataDownloaderPartitionLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'market-data-downloader-partition/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  CodeBuildMarketdataDownloaderCreateDatabaseLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildMarketdataDownloaderCreateDatabaseLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'market-data-downloader-create-db/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  CodeBuildMarketdataDownloaderDeleteTestFilesLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildMarketdataDownloaderDeleteTestFilesLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'market-data-downloader-clean-test-files/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  CodeBuildMarketdataDownloaderCreateFoldersLambda:
+    Type: AWS::CodeBuild::Project
+    DependsOn: CloudFormationRole
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.5.2
+        Type: LINUX_CONTAINER
+      Name: 'CodeBuildMarketdataDownloaderCreateFoldersLambda'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'market-data-downloader-create-folders/buildspec.yaml'
+      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
+      Cache:
+        Location: 'foamdino-etl-build-cache'
+        Type: S3
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt [PipelineRole, Arn]
+      ArtifactStore:
+        Type: S3
+        Location: !Ref 'ArtifactBucket'
+      Name: !Ref 'PipelineName'
+      Stages:
+        - Name: GitHubSource
+          Actions:
+            - Name: TemplateSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref 'GitHubOwner'
+                Repo: !Ref 'GitHubRepo'
+                Branch: !Ref 'GitHubBranch'
+                OAuthToken: !Ref 'GitHubToken'
+              OutputArtifacts:
+                - Name: SourceCode
+              RunOrder: 1
+
+        - Name: BuildMarketdataDownloaderLambdas
+          Actions:
+            - Name: BuildDownloaderLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildDownloaderLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildDownloaderLambdaOutput
+
+            - Name: BuildHarvesterLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildHarvesterLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildHarvesterLambdaOutput
+
+            - Name: BuildPrecisForecastPartitionLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildPrecisForecastPartitionLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildPrecisForecastPartitionLambdaOutput
+
+            - Name: BuildPrecisForecastCreateDatabaseLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildPrecisForecastCreateDatabaseLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+
+            - Name: BuildPrecisForecastDeleteTestFilesLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildPrecisForecastDeleteTestFilesLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildPrecisForecastDeleteTestFilesLambdaOutput
+
+            - Name: BuildPrecisForecastCreateFoldersLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildPrecisForecastCreateFoldersLambda
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
+
+        - Name: TestStage
+          Actions:
+            - Name: CreateLambdasAndDependencies
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+                - Name: BuildPrecisForecastLambdaOutput
+                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
+                - Name: BuildPrecisForecastPartitionLambdaOutput
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref TestStackName
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${TestStackConfig}"
+                TemplatePath: "SourceCode::cloudformation/lambda.cfn.yaml"
+                ParameterOverrides: !Sub |
+                  {
+                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
+                    "PrecisForecastLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "URL"] },
+                    "PrecisForecastKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "ObjectKey"] },
+                    "PrecisForecastPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "URL"] },
+                    "PrecisForecastPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "ObjectKey"] },
+                    "PrecisForecastCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "URL"] },
+                    "PrecisForecastCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "ObjectKey"] }
+                  }
+              RunOrder: '1'
+
+            - Name: CreateTestDatabaseLambda
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref TestStackName
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${TestStackConfig}"
+                TemplatePath: "SourceCode::cloudformation/athena-lambda.cfn.yaml"
+                ParameterOverrides: !Sub |
+                  {
+                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
+                    "PrecisForecastCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "URL"] },
+                    "PrecisForecastCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "ObjectKey"] }
+                  }
+              RunOrder: '2'
+
+            - Name: ApproveTestStack
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                NotificationArn: !Ref CodePipelineSNSTopic
+                CustomData: !Sub 'Do you want to create a changeset against the production stack and delete the test stack?'
+              RunOrder: '3'
+
+            - Name: CleanupTestFiles
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+                - Name: BuildPrecisForecastDeleteTestFilesLambdaOutput
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref CleanupStackName
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${TestStackConfig}"
+                TemplatePath: "SourceCode::cloudformation/clean-test-files-lambda.cfn.yaml"
+                ParameterOverrides: !Sub |
+                  {
+                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
+                    "PrecisForecastDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastDeleteTestFilesLambdaOutput", "URL"] },
+                    "PrecisForecastDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastDeleteTestFilesLambdaOutput", "ObjectKey"] }
+                  }
+              RunOrder: '4'
+
+            - Name: DeleteCleanupStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: DELETE_ONLY
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref CleanupStackName
+              RunOrder: '5'
+
+            - Name: DeleteTestStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: DELETE_ONLY
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref TestStackName
+              RunOrder: '6'
+
+        - Name: ProdStage
+          Actions:
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+                - Name: BuildPrecisForecastLambdaOutput
+                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
+                - Name: BuildPrecisForecastPartitionLambdaOutput
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref ProdStackName
+                Capabilities: CAPABILITY_NAMED_IAM
+                ChangeSetName: !Ref ChangeSetName
+                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${ProdStackConfig}"
+                TemplatePath: "SourceCode::cloudformation/lambda.cfn.yaml"
+                ParameterOverrides: !Sub |
+                  {
+                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
+                    "PrecisForecastLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "URL"] },
+                    "PrecisForecastKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "ObjectKey"] },
+                    "PrecisForecastPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "URL"] },
+                    "PrecisForecastPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "ObjectKey"] },
+                    "PrecisForecastCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "URL"] },
+                    "PrecisForecastCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "ObjectKey"] }
+                  }
+              RunOrder: '1'
+
+            - Name: ApproveChangeSet
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                NotificationArn: !Ref CodePipelineSNSTopic
+                CustomData: !Sub 'A new change set was created for the ${ProdStackName} stack. Do you want to implement the changes?'
+              RunOrder: '2'
+
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Ref ChangeSetName
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: !Ref ProdStackName
+              RunOrder: '3'
+
+            - Name: CreateChangeSet2
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: 'precis-forecast-prod-createdb'
+                Capabilities: CAPABILITY_NAMED_IAM
+                ChangeSetName: !Ref CreateDBChangeSet
+                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${ProdStackConfig}"
+                TemplatePath: "SourceCode::cloudformation/athena-lambda.cfn.yaml"
+                ParameterOverrides: !Sub |
+                  {
+                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
+                    "PrecisForecastCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "URL"] },
+                    "PrecisForecastCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "ObjectKey"] }
+                  }
+              RunOrder: '4'
+
+            - Name: ApproveChangeSet2
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                NotificationArn: !Ref CodePipelineSNSTopic
+                CustomData: !Sub 'A new change set was created for the ${ProdStackName} stack. Do you want to implement the changes?'
+              RunOrder: '5'
+
+            - Name: ExecuteChangeSet2
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Ref CreateDBChangeSet
+                RoleArn: !GetAtt [CFNRole, Arn]
+                StackName: 'precis-forecast-prod-createdb'
+              RunOrder: '6'
+
+Outputs:
+
+  ArtifactBucket:
+    Description: S3 bucket holding all the OutputArtifacts of any pipeline stage
+    Value: !Ref ArtifactBucket
+    Export:
+      Name: 'PrecisForecastArtifactsBucket'

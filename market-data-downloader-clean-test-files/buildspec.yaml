@@ -1,0 +1,17 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - pip install --upgrade pip
+      - pip install -r market-data-downloader-clean-test-files/requirements.txt -t market-data-downloader-clean-test-files
+
+artifacts:
+  base-directory: market-data-downloader-clean-test-files
+  files:
+    - '**/*'
+  type: zip
+
+cache:
+  paths:
+    - /root/.cache/pip

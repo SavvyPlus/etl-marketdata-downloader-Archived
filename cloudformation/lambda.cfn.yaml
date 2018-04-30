@@ -1,0 +1,322 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template to build lambdas and dependencies for lambdas
+
+Parameters:
+
+  SourceLocation:
+    Type: String
+    Description: S3 bucket path where the original source code (and cfn config) is stored
+
+  DownloaderLocation:
+    Type: String
+    Description: S3 bucket path where the built downloader lambda is stored
+
+  DownloaderKey:
+    Type: String
+    Description: S3 key where the built harvester lambda is stored
+
+  HarvesterLocation:
+    Type: String
+    Description: S3 bucket path where the built harvester lambda is stored
+
+  HarvesterKey:
+    Type: String
+    Description: S3 key where the built harvester lambda is stored
+
+  MarketdataDownloaderPartitionLocation:
+    Type: String
+    Description: S3 bucket path where the built market_data_downloader_partition lambda is stored
+
+  MarketdataDownloaderPartitionKey:
+    Type: String
+    Description: S3 key path where the built market_data_downloader_partition lambda is stored
+
+  MarketdataDownloaderCreateFoldersLocation:
+    Type: String
+    Description: S3 bucket path where the built market_data_downloader_create_folders lambda is stored
+
+  MarketdataDownloaderCreateFoldersKey:
+    Type: String
+    Description: S3 key path where the built market_data_downloader_create_folders lambda is stored
+
+  Name:
+    Type: String
+    Description: Name of the stack
+
+Resources:
+
+  MarketdataDownloaderDLQ:
+    Type: AWS::SQS::Queue
+
+  MarketdataDownloaderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt [MarketdataDownloaderDLQ, Arn]
+        maxReceiveCount: 5
+
+  MarketdataDownloaderTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Join [ ".", [ market-data-downloader-topic, !Ref "AWS::StackName" ] ]
+      Subscription:
+        - Endpoint:
+            Fn::GetAtt:
+              - "MarketdataDownloaderQueue"
+              - "Arn"
+          Protocol: 'sqs'
+
+  MarketdataDownloaderQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref 'MarketdataDownloaderQueue']
+      PolicyDocument:
+        Version: "2012-10-17"
+        Id: MarketdataDownloaderQueuePolicy
+        Statement:
+          - Resource:
+              - Fn::GetAtt:
+                - "MarketdataDownloaderQueue"
+                - "Arn"
+            Effect: "Allow"
+            Sid: "Allow-User-SendMessage"
+            Action:
+              - "sqs:SendMessage"
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref MarketdataDownloaderTopic
+            Principal:
+              AWS: "*"
+
+  LambdaRunnerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: LambdaRequired
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: LambdaPolicy
+                Action:
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'lambda:*'
+                Effect: Allow
+                Resource: '*'
+              - Sid: CloudWatchWriteLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  DownloaderLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
+        S3Key: !Ref DownloaderKey
+      FunctionName:
+        Fn::Sub: data_downloader-${AWS::StackName}
+      Handler: "data_downloader.handler"
+      Role: !GetAtt LambdaRunnerRole.Arn
+      Runtime: python3.6
+      Timeout: 300
+
+  HarvesterLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
+        S3Key: !Ref HarvesterKey
+      FunctionName:
+        Fn::Sub: data_harvester-${AWS::StackName}
+      Handler: "data_harvester.handler"
+      Role: !GetAtt LambdaRunnerRole.Arn
+      Runtime: python3.6
+      Timeout: 300
+
+  MarketdataDownloaderPartitionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
+        S3Key: !Ref MarketdataDownloaderPartitionKey
+      FunctionName:
+        Fn::Sub: market_data_downloader_partition-${AWS::StackName}
+      Handler: "market_data_downloader_partition.lambda_handler"
+      Role: !GetAtt LambdaRunnerRole.Arn
+      Runtime: python3.6
+      Environment:
+        Variables:
+          StackName: !Ref AWS::StackName
+      Timeout: 300
+
+  MarketdataDownloaderCreateFoldersLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
+        S3Key: !Ref MarketdataDownloaderCreateFoldersKey
+      FunctionName:
+        Fn::Sub: market_data_downloader_create_folders-${AWS::StackName}
+      Handler: "market_data_downloader_create_folders.handler"
+      Role: !GetAtt LambdaRunnerRole.Arn
+      Runtime: python3.6
+      Environment:
+        Variables:
+          StackName: !Ref AWS::StackName
+          BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+      Timeout: 300
+
+  MarketdataDownloaderBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - DownloaderPermission
+      - HarvesterPermission
+      - MarketdataDownloaderPartitionPermission
+    Properties:
+      BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt DownloaderLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  -
+                    Name: prefix
+                    Value: in/
+
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt MarketdataDownloaderPartitionLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  -
+                    Name: prefix
+                    Value: done/
+
+  DownloaderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref DownloaderLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
+
+  HarvesterPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref HarvesterLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
+
+  MarketdataDownloaderPartitionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MarketdataDownloaderPartitionLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
+
+  MarketdataDownloaderCreateFolders:
+    Type: Custom::CreateFolders
+    DependsOn:
+      - MarketdataDownloaderBucket
+      - MarketdataDownloaderCreateFoldersLambda
+    Properties:
+      ServiceToken: !GetAtt 'MarketdataDownloaderCreateFoldersLambda.Arn'
+      BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+
+Outputs:
+
+  MarketdataDownloaderDLQURL:
+    Description: "URL of DLQ"
+    Value:
+      Ref: MarketdataDownloaderDLQ
+
+  MarketdataDownloaderDLQArn:
+    Description: "Arn of DLQ"
+    Value:
+      !GetAtt [MarketdataDownloaderDLQ, Arn]
+
+  MarketdataDownloaderQueueURL:
+    Description: "URL of market-data-downloader-queue"
+    Value:
+      Ref: MarketdataDownloaderQueue
+
+  MarketdataDownloaderQueueArn:
+    Description: "Arn of market-data-downloader-queue"
+    Value:
+      !GetAtt [MarketdataDownloaderQueue, Arn]
+
+  MarketdataDownloaderTopicArn:
+    Description: "Arn of market-data-downloader-topic"
+    Value:
+      Ref: MarketDataDownloaderTopic
+
+  MarketdataDownloaderBucketArn:
+    Description: "Arn of MarketdataDownloaderBucket"
+    Value:
+      !GetAtt [MarketdataDownloaderBucket, Arn]
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderBucket ] ]
+
+  DownloaderLambda:
+    Description: The ARN of the created DownloaderLambda function
+    Value:
+      !GetAtt DownloaderLambda.Arn
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", DownloaderLambda ] ]
+
+  DownloaderLambdaName:
+    Description: The Name of the created DownloaderLambda function
+    Value:
+      'data_downloader'
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", DownloaderLambdaName ] ]
+
+  HarvesterLambda:
+    Description: The ARN of the created HarvesterLambda function
+    Value:
+      !GetAtt HarvesterLambda.Arn
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", HarvesterLambda ] ]
+
+  HarvesterLambdaName:
+    Description: The Name of the created HarvesterLambda function
+    Value:
+      'data_downloader'
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", HarvesterLambdaName ] ]
+
+  MarketdataDownloaderPartitionLambda:
+    Description: The ARN of the created MarketdataDownloaderPartitionLambda function
+    Value:
+      !GetAtt MarketdataDownloaderPartitionLambda.Arn
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderPartitionLambda ] ]
+
+  MarketdataDownloaderPartitionLambdaName:
+    Description: The Name of the created MarketdataDownloaderPartitionLambdaName function
+    Value:
+      'market_data_downloader_partition'
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderPartitionLambdaName ] ]

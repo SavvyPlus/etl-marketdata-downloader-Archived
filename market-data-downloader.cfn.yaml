@@ -47,7 +47,7 @@ Parameters:
     Type: String
   ChangeSetName:
     Default: UpdateMarketdataDownloaderStack
-    Description: A name for the production PrecisForecast stack change set
+    Description: A name for the production MarketdataDownloader stack change set
     Type: String
   CleanupStackName:
     Default: delete-test-files-market-data-downloader
@@ -362,57 +362,57 @@ Resources:
               OutputArtifacts:
                 - Name: BuildHarvesterLambdaOutput
 
-            - Name: BuildPrecisForecastPartitionLambda
+            - Name: BuildMarketdataDownloaderPartitionLambda
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildPrecisForecastPartitionLambda
+                ProjectName: !Ref CodeBuildMarketdataDownloaderPartitionLambda
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildPrecisForecastPartitionLambdaOutput
+                - Name: BuildMarketdataDownloaderLambdaOutput
 
-            - Name: BuildPrecisForecastCreateDatabaseLambda
+            - Name: BuildMarketdataDownloaderCreateDatabaseLambda
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildPrecisForecastCreateDatabaseLambda
+                ProjectName: !Ref CodeBuildMarketdataDownloaderCreateDatabaseLambda
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
 
-            - Name: BuildPrecisForecastDeleteTestFilesLambda
+            - Name: BuildMarketdataDownloaderDeleteTestFilesLambda
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildPrecisForecastDeleteTestFilesLambda
+                ProjectName: !Ref CodeBuildMarketdataDownloaderDeleteTestFilesLambda
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildPrecisForecastDeleteTestFilesLambdaOutput
+                - Name: BuildMarketdataDownloaderDeleteTestFilesLambdaOutput
 
-            - Name: BuildPrecisForecastCreateFoldersLambda
+            - Name: BuildMarketdataDownloaderCreateFoldersLambda
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildPrecisForecastCreateFoldersLambda
+                ProjectName: !Ref CodeBuildMarketdataDownloaderCreateFoldersLambda
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
 
         - Name: TestStage
           Actions:
@@ -424,9 +424,10 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceCode
-                - Name: BuildPrecisForecastLambdaOutput
-                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
-                - Name: BuildPrecisForecastPartitionLambdaOutput
+                - Name: BuildDownloaderLambdaOutput
+                - Name: BuildHarvesterLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -437,12 +438,14 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "PrecisForecastLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "URL"] },
-                    "PrecisForecastKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "ObjectKey"] },
-                    "PrecisForecastPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "URL"] },
-                    "PrecisForecastPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "ObjectKey"] },
-                    "PrecisForecastCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "URL"] },
-                    "PrecisForecastCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "ObjectKey"] }
+                    "DownloaderLocation" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "URL"] },
+                    "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
+                    "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
+                    "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
+                    "MarketdataDownloaderPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "URL"] },
+                    "MarketdataDownloaderPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "ObjectKey"] },
+                    "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
+                    "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
 
@@ -454,7 +457,7 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceCode
-                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -465,8 +468,8 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "PrecisForecastCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "URL"] },
-                    "PrecisForecastCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "ObjectKey"] }
+                    "MarketdataDownloaderCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "URL"] },
+                    "MarketdataDownloaderCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '2'
 
@@ -489,7 +492,7 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceCode
-                - Name: BuildPrecisForecastDeleteTestFilesLambdaOutput
+                - Name: BuildMarketdataDownloaderDeleteTestFilesLambdaOutput
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -500,8 +503,8 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "PrecisForecastDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastDeleteTestFilesLambdaOutput", "URL"] },
-                    "PrecisForecastDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastDeleteTestFilesLambdaOutput", "ObjectKey"] }
+                    "MarketdataDownloaderDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "URL"] },
+                    "MarketdataDownloaderDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '4'
 
@@ -539,9 +542,10 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceCode
-                - Name: BuildPrecisForecastLambdaOutput
-                - Name: BuildPrecisForecastCreateFoldersLambdaOutput
-                - Name: BuildPrecisForecastPartitionLambdaOutput
+                - Name: BuildDownloaderLambdaOutput
+                - Name: BuildHarvesterLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -553,12 +557,14 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "PrecisForecastLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "URL"] },
-                    "PrecisForecastKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastLambdaOutput", "ObjectKey"] },
-                    "PrecisForecastPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "URL"] },
-                    "PrecisForecastPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastPartitionLambdaOutput", "ObjectKey"] },
-                    "PrecisForecastCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "URL"] },
-                    "PrecisForecastCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateFoldersLambdaOutput", "ObjectKey"] }
+                    "DownloaderLocation" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "URL"] },
+                    "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
+                    "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
+                    "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
+                    "MarketdataDownloaderPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "URL"] },
+                    "MarketdataDownloaderPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "ObjectKey"] },
+                    "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
+                    "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
 
@@ -594,11 +600,11 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceCode
-                - Name: BuildPrecisForecastCreateDatabaseLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
                 RoleArn: !GetAtt [CFNRole, Arn]
-                StackName: 'precis-forecast-prod-createdb'
+                StackName: 'marketdata-downloader-prod-createdb'
                 Capabilities: CAPABILITY_NAMED_IAM
                 ChangeSetName: !Ref CreateDBChangeSet
                 TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${ProdStackConfig}"
@@ -606,8 +612,8 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "PrecisForecastCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "URL"] },
-                    "PrecisForecastCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildPrecisForecastCreateDatabaseLambdaOutput", "ObjectKey"] }
+                    "MarketdataDownloaderCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "URL"] },
+                    "MarketdataDownloaderCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '4'
 
@@ -632,7 +638,7 @@ Resources:
                 ActionMode: CHANGE_SET_EXECUTE
                 ChangeSetName: !Ref CreateDBChangeSet
                 RoleArn: !GetAtt [CFNRole, Arn]
-                StackName: 'precis-forecast-prod-createdb'
+                StackName: 'marketdata-downloader-prod-createdb'
               RunOrder: '6'
 
 Outputs:
@@ -641,4 +647,4 @@ Outputs:
     Description: S3 bucket holding all the OutputArtifacts of any pipeline stage
     Value: !Ref ArtifactBucket
     Export:
-      Name: 'PrecisForecastArtifactsBucket'
+      Name: 'MarketdataDownloaderArtifactsBucket'

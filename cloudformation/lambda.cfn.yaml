@@ -270,7 +270,7 @@ Outputs:
   MarketdataDownloaderTopicArn:
     Description: "Arn of market-data-downloader-topic"
     Value:
-      Ref: MarketDataDownloaderTopic
+      Ref: MarketdataDownloaderTopic
 
   MarketdataDownloaderBucketArn:
     Description: "Arn of MarketdataDownloaderBucket"

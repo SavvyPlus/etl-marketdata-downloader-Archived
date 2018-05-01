@@ -373,7 +373,7 @@ Resources:
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildMarketdataDownloaderLambdaOutput
+                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
 
             - Name: BuildMarketdataDownloaderCreateDatabaseLambda
               ActionTypeId:

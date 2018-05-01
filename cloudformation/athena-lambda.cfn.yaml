@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template to build lambdas and dependencies for lambdas
+
+Parameters:
+
+  SourceLocation:
+    Type: String
+    Description: S3 bucket path where the original source code (and cfn config) is stored
+
+  MarketdataDownloaderCreateDatabaseLocation:
+    Type: String
+    Description: S3 bucket path where the built create lambda is stored
+
+  MarketdataDownloaderCreateDatabaseKey:
+    Type: String
+    Description: S3 key where the built create lambda is stored
+
+  Name:
+    Type: String
+    Description: Name of the stack
+
+Resources:
+
+  LambdaRunnerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: LambdaRequired
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: LambdaPolicy
+                Action:
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'lambda:*'
+                  - 'athena:*'
+                  - 'glue:*'
+                Effect: Allow
+                Resource: '*'
+              - Sid: CloudWatchWriteLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  MarketdataDownloaderCreateDatabaseLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
+        S3Key: !Ref MarketdataDownloaderCreateDatabaseKey
+      FunctionName:
+        Fn::Sub: market_data_downloader_create_db-${AWS::StackName}
+      Handler: "market_data_downloader_create_db.handler"
+      Role: !GetAtt LambdaRunnerRole.Arn
+      Runtime: python3.6
+      Environment:
+        Variables:
+          StackName: !Ref AWS::StackName
+          BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+          DatabaseName:
+            Fn::Sub: market-data-downloader-${AWS::StackName}-db
+      Timeout: 300
+
+  CreateDatabase:
+    Type: Custom::CreateDatabase
+    DependsOn: MarketdataDownloaderCreateDatabaseLambda
+    Properties:
+      ServiceToken: !GetAtt 'MarketdataDownloaderCreateDatabaseLambda.Arn'
+      Region: !Ref "AWS::Region"
+      DBName:
+        Fn::Sub: market-data-downloader-${AWS::StackName}-db
+
+Outputs:
+  PrecisForecastCreateDatabaseArn:
+    Description: The arn of the precis_forecast_create_database function.
+    Value: !GetAtt 'PrecisForecastCreateDatabaseLambda.Arn'

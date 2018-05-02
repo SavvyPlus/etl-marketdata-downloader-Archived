@@ -23,14 +23,6 @@ Parameters:
     Type: String
     Description: S3 key where the built harvester lambda is stored
 
-  MarketdataDownloaderPartitionLocation:
-    Type: String
-    Description: S3 bucket path where the built market_data_downloader_partition lambda is stored
-
-  MarketdataDownloaderPartitionKey:
-    Type: String
-    Description: S3 key path where the built market_data_downloader_partition lambda is stored
-
   MarketdataDownloaderCreateFoldersLocation:
     Type: String
     Description: S3 bucket path where the built market_data_downloader_create_folders lambda is stored
@@ -149,23 +141,6 @@ Resources:
       Runtime: python3.6
       Timeout: 300
 
-  MarketdataDownloaderPartitionLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        S3Bucket:
-          'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
-        S3Key: !Ref MarketdataDownloaderPartitionKey
-      FunctionName:
-        Fn::Sub: market_data_downloader_partition-${AWS::StackName}
-      Handler: "market_data_downloader_partition.lambda_handler"
-      Role: !GetAtt LambdaRunnerRole.Arn
-      Runtime: python3.6
-      Environment:
-        Variables:
-          StackName: !Ref AWS::StackName
-      Timeout: 300
-
   MarketdataDownloaderCreateFoldersLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -189,7 +164,6 @@ Resources:
     DependsOn:
       - DownloaderPermission
       - HarvesterPermission
-      - MarketdataDownloaderPartitionPermission
     Properties:
       BucketName: !Sub "market-data-downloader-${AWS::StackName}"
       NotificationConfiguration:
@@ -202,15 +176,6 @@ Resources:
                   -
                     Name: prefix
                     Value: in/
-
-          - Event: "s3:ObjectCreated:*"
-            Function: !GetAtt MarketdataDownloaderPartitionLambda.Arn
-            Filter:
-              S3Key:
-                Rules:
-                  -
-                    Name: prefix
-                    Value: done/
 
   DownloaderPermission:
     Type: AWS::Lambda::Permission
@@ -225,14 +190,6 @@ Resources:
     Properties:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref HarvesterLambda
-      Principal: s3.amazonaws.com
-      SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
-
-  MarketdataDownloaderPartitionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: 'lambda:InvokeFunction'
-      FunctionName: !Ref MarketdataDownloaderPartitionLambda
       Principal: s3.amazonaws.com
       SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
 
@@ -306,17 +263,3 @@ Outputs:
       'data_downloader'
     Export:
       Name: !Join [ ":", [ !Ref "AWS::StackName", HarvesterLambdaName ] ]
-
-  MarketdataDownloaderPartitionLambda:
-    Description: The ARN of the created MarketdataDownloaderPartitionLambda function
-    Value:
-      !GetAtt MarketdataDownloaderPartitionLambda.Arn
-    Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderPartitionLambda ] ]
-
-  MarketdataDownloaderPartitionLambdaName:
-    Description: The Name of the created MarketdataDownloaderPartitionLambdaName function
-    Value:
-      'market_data_downloader_partition'
-    Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderPartitionLambdaName ] ]

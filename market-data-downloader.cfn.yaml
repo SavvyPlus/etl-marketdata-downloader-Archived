@@ -53,10 +53,6 @@ Parameters:
     Default: delete-test-files-market-data-downloader
     Description: A name for the cleanup stack
     Type: String
-  CreateDBChangeSet:
-    Default: CreateMarketdataDownloaderDBChangeSet
-    Description: A name for the production create database stack change set
-    Type: String
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -228,46 +224,6 @@ Resources:
         Location: 'foamdino-etl-build-cache'
         Type: S3
 
-  CodeBuildMarketdataDownloaderPartitionLambda:
-    Type: AWS::CodeBuild::Project
-    DependsOn: CloudFormationRole
-    Properties:
-      Artifacts:
-        Type: CODEPIPELINE
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/python:3.5.2
-        Type: LINUX_CONTAINER
-      Name: 'CodeBuildMarketDataDownloaderPartitionLambda'
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-      Source:
-        Type: CODEPIPELINE
-        BuildSpec: 'market-data-downloader-partition/buildspec.yaml'
-      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
-      Cache:
-        Location: 'foamdino-etl-build-cache'
-        Type: S3
-
-  CodeBuildMarketdataDownloaderCreateDatabaseLambda:
-    Type: AWS::CodeBuild::Project
-    DependsOn: CloudFormationRole
-    Properties:
-      Artifacts:
-        Type: CODEPIPELINE
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/python:3.5.2
-        Type: LINUX_CONTAINER
-      Name: 'CodeBuildMarketdataDownloaderCreateDatabaseLambda'
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-      Source:
-        Type: CODEPIPELINE
-        BuildSpec: 'market-data-downloader-create-db/buildspec.yaml'
-      TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
-      Cache:
-        Location: 'foamdino-etl-build-cache'
-        Type: S3
-
   CodeBuildMarketdataDownloaderDeleteTestFilesLambda:
     Type: AWS::CodeBuild::Project
     DependsOn: CloudFormationRole
@@ -362,32 +318,6 @@ Resources:
               OutputArtifacts:
                 - Name: BuildHarvesterLambdaOutput
 
-            - Name: BuildMarketdataDownloaderPartitionLambda
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: 1
-              Configuration:
-                ProjectName: !Ref CodeBuildMarketdataDownloaderPartitionLambda
-              InputArtifacts:
-                - Name: SourceCode
-              OutputArtifacts:
-                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
-
-            - Name: BuildMarketdataDownloaderCreateDatabaseLambda
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: 1
-              Configuration:
-                ProjectName: !Ref CodeBuildMarketdataDownloaderCreateDatabaseLambda
-              InputArtifacts:
-                - Name: SourceCode
-              OutputArtifacts:
-                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
-
             - Name: BuildMarketdataDownloaderDeleteTestFilesLambda
               ActionTypeId:
                 Category: Build
@@ -427,7 +357,6 @@ Resources:
                 - Name: BuildDownloaderLambdaOutput
                 - Name: BuildHarvesterLambdaOutput
                 - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
-                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -442,36 +371,10 @@ Resources:
                     "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
                     "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
                     "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-                    "MarketdataDownloaderPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "URL"] },
-                    "MarketdataDownloaderPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "ObjectKey"] },
                     "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
                     "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
-
-            - Name: CreateTestDatabaseLambda
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceCode
-                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
-              Configuration:
-                ActionMode: REPLACE_ON_FAILURE
-                RoleArn: !GetAtt [CFNRole, Arn]
-                StackName: !Ref TestStackName
-                Capabilities: CAPABILITY_NAMED_IAM
-                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${TestStackConfig}"
-                TemplatePath: "SourceCode::cloudformation/athena-lambda.cfn.yaml"
-                ParameterOverrides: !Sub |
-                  {
-                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "MarketdataDownloaderCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "URL"] },
-                    "MarketdataDownloaderCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "ObjectKey"] }
-                  }
-              RunOrder: '2'
 
             - Name: ApproveTestStack
               ActionTypeId:
@@ -482,7 +385,7 @@ Resources:
               Configuration:
                 NotificationArn: !Ref CodePipelineSNSTopic
                 CustomData: !Sub 'Do you want to create a changeset against the production stack and delete the test stack?'
-              RunOrder: '3'
+              RunOrder: '2'
 
             - Name: CleanupTestFiles
               ActionTypeId:
@@ -506,7 +409,7 @@ Resources:
                     "MarketdataDownloaderDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "URL"] },
                     "MarketdataDownloaderDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "ObjectKey"] }
                   }
-              RunOrder: '4'
+              RunOrder: '3'
 
             - Name: DeleteCleanupStack
               ActionTypeId:
@@ -518,7 +421,7 @@ Resources:
                 ActionMode: DELETE_ONLY
                 RoleArn: !GetAtt [CFNRole, Arn]
                 StackName: !Ref CleanupStackName
-              RunOrder: '5'
+              RunOrder: '4'
 
             - Name: DeleteTestStack
               ActionTypeId:
@@ -530,7 +433,7 @@ Resources:
                 ActionMode: DELETE_ONLY
                 RoleArn: !GetAtt [CFNRole, Arn]
                 StackName: !Ref TestStackName
-              RunOrder: '6'
+              RunOrder: '5'
 
         - Name: ProdStage
           Actions:
@@ -545,7 +448,6 @@ Resources:
                 - Name: BuildDownloaderLambdaOutput
                 - Name: BuildHarvesterLambdaOutput
                 - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
-                - Name: BuildMarketdataDownloaderPartitionLambdaOutput
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -561,8 +463,6 @@ Resources:
                     "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
                     "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
                     "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-                    "MarketdataDownloaderPartitionLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "URL"] },
-                    "MarketdataDownloaderPartitionKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderPartitionLambdaOutput", "ObjectKey"] },
                     "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
                     "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
                   }
@@ -592,31 +492,6 @@ Resources:
                 StackName: !Ref ProdStackName
               RunOrder: '3'
 
-            - Name: CreateChangeSet2
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceCode
-                - Name: BuildMarketdataDownloaderCreateDatabaseLambdaOutput
-              Configuration:
-                ActionMode: CHANGE_SET_REPLACE
-                RoleArn: !GetAtt [CFNRole, Arn]
-                StackName: 'marketdata-downloader-prod-createdb'
-                Capabilities: CAPABILITY_NAMED_IAM
-                ChangeSetName: !Ref CreateDBChangeSet
-                TemplateConfiguration: !Sub "SourceCode::cloudformation/config/${ProdStackConfig}"
-                TemplatePath: "SourceCode::cloudformation/athena-lambda.cfn.yaml"
-                ParameterOverrides: !Sub |
-                  {
-                    "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "MarketdataDownloaderCreateDatabaseLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "URL"] },
-                    "MarketdataDownloaderCreateDatabaseKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateDatabaseLambdaOutput", "ObjectKey"] }
-                  }
-              RunOrder: '4'
-
             - Name: ApproveChangeSet2
               ActionTypeId:
                 Category: Approval
@@ -626,20 +501,7 @@ Resources:
               Configuration:
                 NotificationArn: !Ref CodePipelineSNSTopic
                 CustomData: !Sub 'A new change set was created for the ${ProdStackName} stack. Do you want to implement the changes?'
-              RunOrder: '5'
-
-            - Name: ExecuteChangeSet2
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: '1'
-              Configuration:
-                ActionMode: CHANGE_SET_EXECUTE
-                ChangeSetName: !Ref CreateDBChangeSet
-                RoleArn: !GetAtt [CFNRole, Arn]
-                StackName: 'marketdata-downloader-prod-createdb'
-              RunOrder: '6'
+              RunOrder: '4'
 
 Outputs:
 

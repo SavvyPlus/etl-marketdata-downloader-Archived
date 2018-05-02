@@ -20,7 +20,6 @@ def handler(event, context):
             client.put_object(Bucket=rootBucket, Key='in/')
             client.put_object(Bucket=rootBucket, Key='processing/')
             client.put_object(Bucket=rootBucket, Key='done/')
-            client.put_object(Bucket=rootBucket, Key='athena/')
 
         print("Finished creating folders")
 

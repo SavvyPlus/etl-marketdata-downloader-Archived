@@ -58,6 +58,17 @@ def handle_error(e_id, e_url, e_message, msg_receipt):
         sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
         print("Message in the SQS is deleted")
 
+
+def download_upload(file_url, s3_path):
+    '''
+    download file and upload it to s3 bucket
+    Args:
+      file_url (string): the url of the target file
+      s3_path (string): the key in s3 bucket
+    '''
+    data = urllib.request.urlopen(file_url).read() 
+    s3.put_object(Bucket="dex.test", Key=s3_path, Body=data) 
+
 def link_files(source,msg_receipt, overwrite = False):
     '''
     Download files from a link and upload them to s3 bucket
@@ -81,17 +92,24 @@ def link_files(source,msg_receipt, overwrite = False):
                 file_url = urllib.parse.urljoin(source_url, f.get('href'))
                 file_name = file_url.split('/')[-1]
                 if file_name:
-                    urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                    #   urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                    # if overwrite:
+                    #      s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_OVER/{file_name}')
+                    # else:
+                    #      s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINK/{file_name}')
+                    # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+                    # os.remove(f'/tmp/{file_name}')
                     if overwrite:
-                        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_OVER/{file_name}')
+                        download_upload(file_url, f'POC2/LINKS_OVER/{file_name}')
                     else:
-                        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINK/{file_name}')
-                    sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-                    os.remove(f'/tmp/{file_name}')
+                        #To do: check repeat file!!!
+                        download_upload(file_url, f'POC2/LINK/{file_name}')
         except Exception as e:
             print(f'Error when handling file: {e}')
         else:
             print(f'Finished: {source["ID"]}')
+            sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+            print("SQS Message deleted")
 
 def dlinks_files(source, msg_receipt):
     '''
@@ -104,15 +122,20 @@ def dlinks_files(source, msg_receipt):
     file_name = source['PATTERN']
     try:
         print("Start downloading a file")
-        urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
-        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_DIRECT/{file_name}')
-        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-        os.remove(f'/tmp/{file_name}')
+        # urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
+        # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_DIRECT/{file_name}')
+        # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        # os.remove(f'/tmp/{file_name}')
+
+        #To do: check repeat file!!!
+        download_upload(source['ID'], f'POC2/LINKS_DIRECT/{file_name}')
     except Exception as e:
         print(f'Error when handling file: {e}')
         handle_error(source['ID'], source['URL'], e, msg_receipt)
     else:
         print(f'Finished: {source["ID"]}')
+        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        print("SQS Message deleted")
 
 def ftp_files(source, msg_receipt):
      '''
@@ -135,14 +158,19 @@ def ftp_files(source, msg_receipt):
         try:
             for file_name in fnames:
                 file_url = urllib.parse.urljoin(source['URL'], file_name)
-                urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
-                s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILES/{file_name}')
-                sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-                os.remove(f'/tmp/{file_name}')
+                # urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILES/{file_name}')
+                # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+                # os.remove(f'/tmp/{file_name}')
+
+                #To do: check repeat file!!!
+                download_upload(file_url, f'POC2/FTP_FILES/{file_name}')
         except Exception as e:
             print(f'Error when handling file: {e}')
         else:
             print(f'Finished: {source["ID"]}')
+            sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+            print("SQS Message deleted")
 
 def dftp_files(source,  msg_receipt):
     '''
@@ -155,15 +183,20 @@ def dftp_files(source,  msg_receipt):
     file_name = source['PATTERN']
     try:
         print("Start downloading a file")
-        urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
-        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILE/{file_name}')
-        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-        os.remove(f'/tmp/{file_name}')
+        # urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
+        # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILE/{file_name}')
+        # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        # os.remove(f'/tmp/{file_name}')
+
+        #To do: check repeat file!!!
+        download_upload(source['URL'], f'POC2/FTP_FILE/{file_name}')
     except Exception as e:
         print(f'Error when handling file: {e}')
         handle_error(source['ID'], source['URL'], e, msg_receipt)
     else:
         print(f'Finished: {source["ID"]}')
+        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        print("SQS Message deleted")
 
 def handler(event, context):
     '''

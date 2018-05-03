@@ -5,7 +5,7 @@ This project contains the lambda code and infrastructure to build a codepipeline
 ```
 .
 ├── cloudformation
-│   ├── clean-test-files.cfn.yaml
+│   ├── clean-test-files-lambda.cfn.yaml
 │   ├── config
 │   │   ├── prod-market-data-downloader-stack-configuration.json
 │   │   └── test-market-data-downloader-stack-configuration.json

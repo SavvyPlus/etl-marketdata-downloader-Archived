@@ -367,11 +367,8 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "DownloaderLocation" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "URL"] },
                     "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
-                    "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
                     "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-                    "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
                     "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
@@ -406,7 +403,6 @@ Resources:
                 ParameterOverrides: !Sub |
                   {
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-                    "MarketdataDownloaderDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "URL"] },
                     "MarketdataDownloaderDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '3'

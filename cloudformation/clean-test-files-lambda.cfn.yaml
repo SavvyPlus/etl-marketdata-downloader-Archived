@@ -75,7 +75,7 @@ Resources:
       - MarketdataDownloaderCleanTestFilesLambda
     Properties:
       ServiceToken: !GetAtt 'MarketdataDownloaderCleanTestFilesLambda.Arn'
-      BucketName: market-data-downloader-test-market-data-downloader
+      BucketName: market-data-downloader-testmarket-data-downloader
 
 Outputs:
 

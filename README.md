@@ -1,5 +1,5 @@
 # Intro
-This project contains the lambda code and infrastructure to build a codepipeline for processing ASX files.
+This project contains the lambda code and infrastructure to build a codepipeline for processing MarketDataDownloader files.
 
 # Structure
 ```

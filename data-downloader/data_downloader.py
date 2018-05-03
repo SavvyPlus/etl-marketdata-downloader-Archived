@@ -100,6 +100,7 @@ def link_files(source,msg_receipt, overwrite = False):
                     # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
                     # os.remove(f'/tmp/{file_name}')
                     if overwrite:
+                        # overwrite the file, no need to check repeat
                         download_upload(file_url, f'POC2/LINKS_OVER/{file_name}')
                     else:
                         #To do: check repeat file!!!

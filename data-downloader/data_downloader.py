@@ -1,3 +1,6 @@
+# @Author: Dex
+# @Email: ykydxt@gmail.com
+
 import boto3
 import botocore.vendored.requests
 import urllib
@@ -7,6 +10,13 @@ import os
 import csv
 from bs4 import BeautifulSoup
 
+'''
+Environment Variable：
+    queue_name (string): the name of SQS queue
+    source_bucket (string): the bucket of the source csv file
+    source_key (string): the key of the source csv file
+'''
+
 sqs = boto3.client('sqs')
 s3 = boto3.client('s3')
 sns = boto3.client('sns')
@@ -14,11 +24,24 @@ sns = boto3.client('sns')
 queue_url = f'https://sqs.ap-southeast-2.amazonaws.com/547051082101/{os.environ["queue_name"]}'
 
 def handle_error(e_id, e_url, e_message, msg_receipt):
+    '''
+    Handle the situation where there's something from with the source.
+    1. Modify the source csv file.
+    2. Send SNS nofication to developers
+    3. Delete the message(task) in SQS
+    Args:
+      e_id (string): the ID(in the source csv file) of the invalid source
+      e_url (string): the URL of the invalid source
+      e_message (string): The error message returned from the invalid source, sent to developers
+      msg_receipt (string): the receipt of the message from SQS, used to delete the message
+    '''
     try:
+        # Retrive the source csv file
         source_data = s3.get_object(Bucket=os.environ['source_bucket'], Key=os.environ['source_key'])['Body'].read().decode("utf-8").splitlines(True)
         csv_writer = csv.writer(open(f'/tmp/{os.environ["source_key"]}', 'w'))
         sources = list(csv.reader(source_data))
         for n, source in enumerate(sources):
+            # Modify the flag of invalid source to "2"
             if source[0] == e_id:
                 sources[n][4] = 2
             csv_writer.writerow(source)
@@ -35,7 +58,25 @@ def handle_error(e_id, e_url, e_message, msg_receipt):
         sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
         print("Message in the SQS is deleted")
 
+
+def download_upload(file_url, s3_path):
+    '''
+    download file and upload it to s3 bucket
+    Args:
+      file_url (string): the url of the target file
+      s3_path (string): the key in s3 bucket
+    '''
+    data = urllib.request.urlopen(file_url).read() 
+    s3.put_object(Bucket="dex.test", Key=s3_path, Body=data) 
+
 def link_files(source,msg_receipt, overwrite = False):
+    '''
+    Download files from a link and upload them to s3 bucket
+    Args:
+      source (dict): the message content from SQS(the complete info of the source)
+      msg_receipt (string): the receipt of the message from SQS, used to delete the message
+      overwrite (bool,optional): whether to overwrite the file in the s3 bucket
+    '''
     source_url = source['URL']
     print(f'Start handling ID: {source["ID"]}, URL: {source["URL"]} ')
     try:
@@ -51,34 +92,59 @@ def link_files(source,msg_receipt, overwrite = False):
                 file_url = urllib.parse.urljoin(source_url, f.get('href'))
                 file_name = file_url.split('/')[-1]
                 if file_name:
-                    urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                    #   urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                    # if overwrite:
+                    #      s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_OVER/{file_name}')
+                    # else:
+                    #      s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINK/{file_name}')
+                    # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+                    # os.remove(f'/tmp/{file_name}')
                     if overwrite:
-                        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_OVER/{file_name}')
+                        # overwrite the file, no need to check repeat
+                        download_upload(file_url, f'POC2/LINKS_OVER/{file_name}')
                     else:
-                        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINK/{file_name}')
-                    sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-                    os.remove(f'/tmp/{file_name}')
+                        #To do: check repeat file!!!
+                        download_upload(file_url, f'POC2/LINK/{file_name}')
         except Exception as e:
             print(f'Error when handling file: {e}')
         else:
             print(f'Finished: {source["ID"]}')
+            sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+            print("SQS Message deleted")
 
 def dlinks_files(source, msg_receipt):
+    '''
+    Download a file from direct link and upload it to s3 bucket
+    Args:
+      source (dict): the message content from SQS(the complete info of the source)
+      msg_receipt (string): the receipt of the message from SQS, used to delete the message
+    '''
     print(f'Start handling ID: {source["ID"]}, URL: {source["URL"]} ')
     file_name = source['PATTERN']
     try:
         print("Start downloading a file")
-        urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
-        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_DIRECT/{file_name}')
-        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-        os.remove(f'/tmp/{file_name}')
+        # urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
+        # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/LINKS_DIRECT/{file_name}')
+        # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        # os.remove(f'/tmp/{file_name}')
+
+        #To do: check repeat file!!!
+        download_upload(source['ID'], f'POC2/LINKS_DIRECT/{file_name}')
     except Exception as e:
         print(f'Error when handling file: {e}')
         handle_error(source['ID'], source['URL'], e, msg_receipt)
     else:
         print(f'Finished: {source["ID"]}')
+        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        print("SQS Message deleted")
 
 def ftp_files(source, msg_receipt):
+     '''
+    Download files from ftp source and upload them to s3 bucket
+    Args:
+      source (dict): the message content from SQS(the complete info of the source)
+      msg_receipt (string): the receipt of the message from SQS, used to delete the message
+    '''
     print(f'Start handling ID: {source["ID"]}, URL: {source["URL"]} ')
     try:
         response = urllib.request.urlopen(source['URL'])
@@ -93,31 +159,52 @@ def ftp_files(source, msg_receipt):
         try:
             for file_name in fnames:
                 file_url = urllib.parse.urljoin(source['URL'], file_name)
-                urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
-                s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILES/{file_name}')
-                sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-                os.remove(f'/tmp/{file_name}')
+                # urllib.request.urlretrieve(file_url, f'/tmp/{file_name}')
+                # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILES/{file_name}')
+                # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+                # os.remove(f'/tmp/{file_name}')
+
+                #To do: check repeat file!!!
+                download_upload(file_url, f'POC2/FTP_FILES/{file_name}')
         except Exception as e:
             print(f'Error when handling file: {e}')
         else:
             print(f'Finished: {source["ID"]}')
+            sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+            print("SQS Message deleted")
 
 def dftp_files(source,  msg_receipt):
+    '''
+    Download a file from direct ftp source and upload it to s3 bucket
+    Args:
+      source (dict): the message content from SQS(the complete info of the source)
+      msg_receipt (string): the receipt of the message from SQS, used to delete the message
+    '''
     print(f'Start handling ID: {source["ID"]}, URL: {source["URL"]} ')
     file_name = source['PATTERN']
     try:
         print("Start downloading a file")
-        urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
-        s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILE/{file_name}')
-        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
-        os.remove(f'/tmp/{file_name}')
+        # urllib.request.urlretrieve(source['URL'], f'/tmp/{file_name}')
+        # s3.upload_file(f'/tmp/{file_name}', 'dex.test', f'POC/FTP_FILE/{file_name}')
+        # sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        # os.remove(f'/tmp/{file_name}')
+
+        #To do: check repeat file!!!
+        download_upload(source['URL'], f'POC2/FTP_FILE/{file_name}')
     except Exception as e:
         print(f'Error when handling file: {e}')
         handle_error(source['ID'], source['URL'], e, msg_receipt)
     else:
         print(f'Finished: {source["ID"]}')
+        sqs.delete_message(QueueUrl=queue_url,ReceiptHandle=msg_receipt)
+        print("SQS Message deleted")
 
 def handler(event, context):
+    '''
+    Standard aws lambda handler function
+    This function handler should be triggered by scheduled event at certain interval
+    Receive messages(task) from SQS and execute tasks depends on the source type
+    '''
     count = 5
     print("Attempt to receive 5 messages")
     for i in range(0, count):

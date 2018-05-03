@@ -492,17 +492,6 @@ Resources:
                 StackName: !Ref ProdStackName
               RunOrder: '3'
 
-            - Name: ApproveChangeSet2
-              ActionTypeId:
-                Category: Approval
-                Owner: AWS
-                Provider: Manual
-                Version: '1'
-              Configuration:
-                NotificationArn: !Ref CodePipelineSNSTopic
-                CustomData: !Sub 'A new change set was created for the ${ProdStackName} stack. Do you want to implement the changes?'
-              RunOrder: '4'
-
 Outputs:
 
   ArtifactBucket:

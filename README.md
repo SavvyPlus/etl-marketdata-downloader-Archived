@@ -1,5 +1,6 @@
 # Intro
 This project contains the lambda code and infrastructure to build a codepipeline for processing MarketDataDownloader files.
+The architecture of MarketDataDownloader can be found at https://drive.google.com/open?id=1t2b_UvSx0VqTNrPFA_PM1axGjl8cqcIO
 
 # Structure
 ```

@@ -34,13 +34,13 @@ def lambda_handler(event, context):
             if event['RequestType'] == 'Delete':
                 for obj in bucket.objects.filter(Prefix='in/'):
                     s3.Object(bucket.name, obj.key).delete()
-                    s3.Object(bucket.name, 'in').delete()
+                    s3.Object(bucket.name, 'in/').delete()
                 for obj in bucket.objects.filter(Prefix='processing/'):
                     s3.Object(bucket.name, obj.key).delete()
-                    s3.Object(bucket.name, 'processing').delete()
+                    s3.Object(bucket.name, 'processing/').delete()
                 for obj in bucket.objects.filter(Prefix='done/'):
                     s3.Object(bucket.name, obj.key).delete()
-                    s3.Object(bucket.name, 'done').delete()
+                    s3.Object(bucket.name, 'done/').delete()
 
         sendResponseCfn(event, context, "SUCCESS")
     except Exception as e:

@@ -160,11 +160,8 @@ This stage is broken into 3 pieces: `CreateLambdasAndDependencies`, `ApproveTest
     ParameterOverrides: !Sub |
       {
         "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-        "DownloaderLocation" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "URL"] },
         "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
-        "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
         "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-        "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
         "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
       }
   RunOrder: '1'
@@ -205,8 +202,7 @@ The next stage deletes any test files that were added to the test buckets etc.
     TemplatePath: "SourceCode::cloudformation/clean-test-files-lambda.cfn.yaml"
     ParameterOverrides: !Sub |
       {
-        "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
-        "MarketdataDownloaderDeleteTestFilesLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "URL"] },
+        "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },        
         "MarketdataDownloaderDeleteTestFilesKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderDeleteTestFilesLambdaOutput", "ObjectKey"] }
       }
   RunOrder: '3'

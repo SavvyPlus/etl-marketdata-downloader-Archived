@@ -66,8 +66,8 @@ def download_upload(file_url, s3_path):
       file_url (string): the url of the target file
       s3_path (string): the key in s3 bucket
     '''
-    data = urllib.request.urlopen(file_url).read() 
-    s3.put_object(Bucket="dex.test", Key=s3_path, Body=data) 
+    data = urllib.request.urlopen(file_url).read()
+    s3.put_object(Bucket="dex.test", Key=s3_path, Body=data)
 
 def link_files(source,msg_receipt, overwrite = False):
     '''
@@ -139,13 +139,15 @@ def dlinks_files(source, msg_receipt):
         print("SQS Message deleted")
 
 def ftp_files(source, msg_receipt):
-     '''
+    """
     Download files from ftp source and upload them to s3 bucket
     Args:
       source (dict): the message content from SQS(the complete info of the source)
       msg_receipt (string): the receipt of the message from SQS, used to delete the message
-    '''
+    """
+
     print(f'Start handling ID: {source["ID"]}, URL: {source["URL"]} ')
+
     try:
         response = urllib.request.urlopen(source['URL'])
         file_list = response.read().decode().split('\r\n')[0: -1]

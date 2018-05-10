@@ -15,9 +15,9 @@ Parameters:
     Type: String
     Description: S3 key where the built harvester lambda is stored
 
-  MarketdataDownloaderCreateFoldersKey:
+  MarketdataDownloaderCreateBucketKey:
     Type: String
-    Description: S3 key path where the built market_data_downloader_create_folders lambda is stored
+    Description: S3 key path where the built market_data_downloader_create_bucket lambda is stored
 
   Name:
     Type: String
@@ -129,16 +129,14 @@ Resources:
       Runtime: python3.6
       Timeout: 300
 
-  MarketdataDownloaderCreateFoldersLambda:
+  MarketdataDownloaderCreateBucketLambda:
     Type: AWS::Lambda::Function
     Properties:
       Code:
         S3Bucket:
           'Fn::ImportValue': 'MarketdataDownloaderArtifactsBucket'
-        S3Key: !Ref MarketdataDownloaderCreateFoldersKey
-      FunctionName:
-        Fn::Sub: market_data_downloader_create_folders-${AWS::StackName}
-      Handler: "market_data_downloader_create_folders.handler"
+        S3Key: !Ref MarketdataDownloaderCreateBucketKey
+      Handler: "market_data_downloader_create_bucket.handler"
       Role: !GetAtt LambdaRunnerRole.Arn
       Runtime: python3.6
       Environment:
@@ -147,23 +145,23 @@ Resources:
           BucketName: !Sub "market-data-downloader-${AWS::StackName}"
       Timeout: 300
 
-  MarketdataDownloaderBucket:
-    Type: AWS::S3::Bucket
-    DependsOn:
-      - DownloaderPermission
-      - HarvesterPermission
-    Properties:
-      BucketName: !Sub "market-data-downloader-${AWS::StackName}"
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: "s3:ObjectCreated:*"
-            Function: !GetAtt DownloaderLambda.Arn
-            Filter:
-              S3Key:
-                Rules:
-                  -
-                    Name: prefix
-                    Value: in/
+  # MarketdataDownloaderBucket:
+  #   Type: AWS::S3::Bucket
+  #   DependsOn:
+  #     - DownloaderPermission
+  #     - HarvesterPermission
+  #   Properties:
+  #     BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+  #     NotificationConfiguration:
+  #       LambdaConfigurations:
+  #         - Event: "s3:ObjectCreated:*"
+  #           Function: !GetAtt DownloaderLambda.Arn
+  #           Filter:
+  #             S3Key:
+  #               Rules:
+  #                 -
+  #                   Name: prefix
+  #                   Value: in/
 
   DownloaderPermission:
     Type: AWS::Lambda::Permission
@@ -181,14 +179,14 @@ Resources:
       Principal: s3.amazonaws.com
       SourceArn: !Sub "arn:aws:s3:::market-data-downloader-${AWS::StackName}"
 
-  MarketdataDownloaderCreateFolders:
-    Type: Custom::CreateFolders
+  MarketdataDownloaderCreateBucket:
+    Type: Custom::CreateBucket
     DependsOn:
-      - MarketdataDownloaderBucket
-      - MarketdataDownloaderCreateFoldersLambda
+     - DownloaderPermission
     Properties:
-      ServiceToken: !GetAtt 'MarketdataDownloaderCreateFoldersLambda.Arn'
+      ServiceToken: !GetAtt 'MarketdataDownloaderCreateBucketLambda.Arn'
       BucketName: !Sub "market-data-downloader-${AWS::StackName}"
+      InputFn: !GetAtt DownloaderLambda.Arn
 
 Outputs:
 
@@ -216,13 +214,6 @@ Outputs:
     Description: "Arn of market-data-downloader-topic"
     Value:
       Ref: MarketdataDownloaderTopic
-
-  MarketdataDownloaderBucketArn:
-    Description: "Arn of MarketdataDownloaderBucket"
-    Value:
-      !GetAtt [MarketdataDownloaderBucket, Arn]
-    Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", MarketdataDownloaderBucket ] ]
 
   DownloaderLambda:
     Description: The ARN of the created DownloaderLambda function

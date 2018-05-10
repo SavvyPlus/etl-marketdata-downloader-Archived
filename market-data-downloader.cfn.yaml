@@ -244,7 +244,7 @@ Resources:
         Location: 'foamdino-etl-build-cache'
         Type: S3
 
-  CodeBuildMarketdataDownloaderCreateFoldersLambda:
+  CodeBuildMarketdataDownloaderCreateBucketLambda:
     Type: AWS::CodeBuild::Project
     DependsOn: CloudFormationRole
     Properties:
@@ -254,11 +254,11 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/python:3.5.2
         Type: LINUX_CONTAINER
-      Name: 'CodeBuildMarketdataDownloaderCreateFoldersLambda'
+      Name: 'CodeBuildMarketdataDownloaderCreateBucketLambda'
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 'market-data-downloader-create-folders/buildspec.yaml'
+        BuildSpec: 'market-data-downloader-create-bucket/buildspec.yaml'
       TimeoutInMinutes: 5 # must be between 5 minutes and 8 hours
       Cache:
         Location: 'foamdino-etl-build-cache'
@@ -331,18 +331,18 @@ Resources:
               OutputArtifacts:
                 - Name: BuildMarketdataDownloaderDeleteTestFilesLambdaOutput
 
-            - Name: BuildMarketdataDownloaderCreateFoldersLambda
+            - Name: BuildMarketdataDownloaderCreateBucketLambda
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildMarketdataDownloaderCreateFoldersLambda
+                ProjectName: !Ref CodeBuildMarketdataDownloaderCreateBucketLambda
               InputArtifacts:
                 - Name: SourceCode
               OutputArtifacts:
-                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateBucketLambdaOutput
 
         - Name: TestStage
           Actions:
@@ -356,7 +356,7 @@ Resources:
                 - Name: SourceCode
                 - Name: BuildDownloaderLambdaOutput
                 - Name: BuildHarvesterLambdaOutput
-                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateBucketLambdaOutput
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -369,7 +369,7 @@ Resources:
                     "SourceLocation" : { "Fn::GetArtifactAtt" : ["SourceCode", "URL"] },
                     "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
                     "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-                    "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
+                    "MarketdataDownloaderCreateBucketKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateBucketLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
 
@@ -443,7 +443,7 @@ Resources:
                 - Name: SourceCode
                 - Name: BuildDownloaderLambdaOutput
                 - Name: BuildHarvesterLambdaOutput
-                - Name: BuildMarketdataDownloaderCreateFoldersLambdaOutput
+                - Name: BuildMarketdataDownloaderCreateBucketLambdaOutput
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
                 RoleArn: !GetAtt [CFNRole, Arn]
@@ -459,8 +459,8 @@ Resources:
                     "DownloaderKey" : { "Fn::GetArtifactAtt" : ["BuildDownloaderLambdaOutput", "ObjectKey"] },
                     "HarvesterLocation" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "URL"] },
                     "HarvesterKey" : { "Fn::GetArtifactAtt" : ["BuildHarvesterLambdaOutput", "ObjectKey"] },
-                    "MarketdataDownloaderCreateFoldersLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "URL"] },
-                    "MarketdataDownloaderCreateFoldersKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateFoldersLambdaOutput", "ObjectKey"] }
+                    "MarketdataDownloaderCreateBucketLocation" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateBucketLambdaOutput", "URL"] },
+                    "MarketdataDownloaderCreateBucketKey" : { "Fn::GetArtifactAtt" : ["BuildMarketdataDownloaderCreateBucketLambdaOutput", "ObjectKey"] }
                   }
               RunOrder: '1'
 

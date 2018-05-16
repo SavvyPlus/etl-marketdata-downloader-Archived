@@ -66,13 +66,13 @@ The `buildspec.yaml` defines how the lambda will be built
 It is the whole procedure of creating this stack.
 
 * Fetch source file:
-	The pipeline fetches everything in a git repository including source code and YAML files etc. The output of this stage is given the name SourceCode and this is then available to the following stages in the pipeline.
+	The pipeline fetches everything in a git repository including source code and YAML files etc. The output of this stage is given the name `SourceCode` and this is then available to the following stages in the pipeline.
 * Build lambda:
-	This stage uses the output (SourceCode) of the previous stage to compile the lambda code. And it references the previously defined CodeBuild step (e.g.`Configuration: ProjectName: !Ref CodeBuildDownloaderLambda`) and after execution the output of this is called `BuildYYYLambdaOutput` (YYY is the name of the corresponding lambda function), which is a package of compiled code and can be used in later stages of the pipeline.
+	This stage uses the output (`SourceCode`) of the previous stage to compile the lambda code. And it references the previously defined CodeBuild step (e.g.`Configuration: ProjectName: !Ref CodeBuildDownloaderLambda`) and after execution the output of this is called `BuildYYYLambdaOutput` (YYY is the name of the corresponding lambda function), which is a package of compiled code and can be used in later stages of the pipeline.
 * TestStage:
 	* CreateLambdasAndDependencies:
 
-		It execute another CloudFormation template `lambda.cfn.yaml` which is responsible for deploying the lambdas built earlier in the CodePipeline and the dependencies that these lambdas rely on. In other words, this stage uses `lambda.cfn.yaml` to create the test stack (deploy all the lambdas and SNS, CloudWatchEvent...) and the deployment details are stored in lambda.cfn.yaml. Therefore, this stage should pass the location of artifacts (built lambda packages) to the Parameters section in lambda.cfn.yaml, which is achieved via the `InputArtifacts` section and the `ParameterOverrides` section.
+		It execute another CloudFormation template `lambda.cfn.yaml` which is responsible for deploying the lambdas built earlier in the CodePipeline and the dependencies that these lambdas rely on. In other words, this stage uses `lambda.cfn.yaml` to create the test stack (deploy all the lambdas and SNS, CloudWatchEvent...) and the deployment details are stored in `lambda.cfn.yaml`. Therefore, this stage should pass the location of artifacts (built lambda packages) to the `Parameters` section in `lambda.cfn.yaml`, which is achieved via the `InputArtifacts` section and the `ParameterOverrides` section.
 
 	* ApproveTestStack:
 
@@ -82,7 +82,7 @@ It is the whole procedure of creating this stack.
 
 	* CleanupTestFiles:
 
-		After the developer approve in the last stage, this stage deletes any test files that were added to the test buckets etc. The methodology of this stage is similar to the CreateLambdasAndDependencies. The difference is that this stage uses `clean-test-files-lambda.cfn.yaml`
+		After the developer approve in the last stage, this stage deletes any test files that were added to the test buckets etc. The methodology of this stage is similar to the `CreateLambdasAndDependencies`. The difference is that this stage uses `clean-test-files-lambda.cfn.yaml`
 
   * DeleteCleanupStack:
 
@@ -93,22 +93,22 @@ It is the whole procedure of creating this stack.
 	Finally, the test stack is deleted.
 
     Note: Deleting S3 buckets
-    If during testing, a file was uploaded to a testing S3 bucket and was not removed before the ApproveTestStack is clicked, then the DeleteTestStack will fail to execute and the deployment will not progress to production.
+    If during testing, a file was uploaded to a testing S3 bucket and was not removed before the `ApproveTestStack` is clicked, then the `DeleteTestStack` will fail to execute and the deployment will not progress to production.
 
 * ProdStage:
-  The ProdStage is similar to the TestStage, except it creates a changeset that it applies to the currently running production stack. This changeset captures all the differences in code and infrastructure between versions and allows the user to rollback to a prior version and know that it has reverted both the code and any infrastructure changes.
+  The ProdStage is similar to the `TestStage`, except it creates a changeset that it applies to the currently running production stack. This changeset captures all the differences in code and infrastructure between versions and allows the user to rollback to a prior version and know that it has reverted both the code and any infrastructure changes.
 
 	* CreateChangeSet:
-	Similar to CreateLambdasAndDependencies in TestStage, except it creates a ChangeSet that it applies to the currently running production stack. This ChangesSet captures all the differences in code and infrastructure between versions and allows the user to rollback to a prior version and know that it has reverted both the code and any infrastructure changes.
+	Similar to `CreateLambdasAndDependencies` in `TestStage`, except it creates a ChangeSet that it applies to the currently running production stack. This ChangesSet captures all the differences in code and infrastructure between versions and allows the user to rollback to a prior version and know that it has reverted both the code and any infrastructure changes.
 
 	* ApproveChangeSet:
-	It is similar to ApproveTestStack in TestStage and notify the developer to manually approve the changes.
+	It is similar to `ApproveTestStack` in TestStage and notify the developer to manually approve the changes.
 
 	* ExecuteChangeSet:
 	It execute the ChangeSet once the developer manually approves the changes.
 
 ### Outputs (ArtifactBucket):
-It defines a S3 bucket holding all the OutputArtifacts of any pipeline stage.
+It defines a S3 bucket holding all the `OutputArtifacts` of any pipeline stage.
 
 ## cloudformation/lambda.cfn.yaml:
 This CloudFormation template is invoked by the CodePipeline in `xxx.cfn.yaml`.
@@ -123,9 +123,9 @@ The identities of some components (e.g. The ARN of every lambda)
 * The whole procedure is about a master (`xxx.cfn.yaml`) assigning a task of repairing an old house (a running production stack) to a worker (`lambda.cfn.yaml`).
 * The master needs to buy some raw materials (fetch source file) and turn these materials into mortar (build lambda using CodeBuild).
 * Afterwards, the master tells the worker where the mortar is (pass artifacts to `lambda.cfn.yaml`) and ask him to build a prototype(the test stack).
-* The worker knows how to do his job(the details in lambda.cfn.yaml).
+* The worker knows how to do his job(the details in `lambda.cfn.yaml`).
 * Once the worker finishes the prototype, he asks (SNS notification) the master to come to the construction site (CodePipeline console) and the master decides
-* whether to approve the prototype (ApproveTestStack).
+* whether to approve the prototype (`ApproveTestStack`).
 * Once the master approves, the prototype will be destroyed by a terminator called `clean-test-files`.
 * Then, the master asks the worker to capture the difference between the prototype and the old house and then repair the old house by applying the difference (executing ChangeSet). Mission completed!
 
@@ -133,7 +133,7 @@ Note:
 	When there is no old house (existing production stack), repairing an old house becomes building a house (creating a production stack).
 
 # Conclusion:
-	In general, there is a top level cloudformation template that creates the codepipeline that is then used to run the lower level template that deploys the built lambdas
+In general, there is a top level cloudformation template that creates the codepipeline that is then used to run the lower level template that deploys the built lambdas
 
 
 # Partition

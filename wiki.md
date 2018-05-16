@@ -28,7 +28,7 @@ This wiki page describes the standard model of CloudFormation for our cloud appl
 	├── README.md
 	└── xxx.cfn.yaml
 ```
-`xxx-create-folders`, `xxx-create-database` and `xxx-clean-test-files` exist to work within the pipeline and they are called support lambdas. xxx is the core lambda that is actually doing the business processing and it is called business lambda.
+`xxx-create-folders`, `xxx-create-database` and `xxx-clean-test-files` exist to work within the pipeline and they are called support lambdas. `xxx` is the core lambda that is actually doing the business processing and it is called business lambda.
 
 # Main CloudFormation Template:
 This section explains the two main CloudFormation templates: `xxx.cfn.yaml` and `cloudformation/lambda.cfn.yaml`.
@@ -108,16 +108,16 @@ It is the whole procedure of creating this stack.
 	It execute the ChangeSet once the developer manually approves the changes.
 
 ###Outputs (ArtifactBucket):
-	It defines a S3 bucket holding all the OutputArtifacts of any pipeline stage.
+It defines a S3 bucket holding all the OutputArtifacts of any pipeline stage.
 
 ##cloudformation/lambda.cfn.yaml:
-	This CloudFormation template is invoked by the CodePipeline in `xxx.cfn.yaml`.
+This CloudFormation template is invoked by the CodePipeline in `xxx.cfn.yaml`.
 ###Parameters:
-		These are the S3 bucket paths of the built lambda and the paths are passed from `xxx.cfn.yaml`.
+These are the S3 bucket paths of the built lambda and the paths are passed from `xxx.cfn.yaml`.
 ###Resources:
-          These resources are used to define SQS, SNS, Permission and deploy lambdas.
+These resources are used to define SQS, SNS, Permission and deploy lambdas.
 ###Outputs:
-		The identities of some components (e.g. The ARN of every lambda)
+The identities of some components (e.g. The ARN of every lambda)
 
 #A little story:
 * The whole procedure is about a master (`xxx.cfn.yaml`) assigning a task of repairing an old house (a running production stack) to a worker (`lambda.cfn.yaml`).

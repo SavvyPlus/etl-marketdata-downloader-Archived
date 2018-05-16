@@ -45,16 +45,16 @@ It defines how parameters are grouped and sorted in the AWS CloudFormation conso
 ### Resources:
 These are the resources that CloudFormation will create when executing this stack.
 
-### Roles:
+#### Roles:
 All the roles needed for creating and executing this stack.
 
-### SNSTopic:
+#### SNSTopic:
 It is used to send CodePipeline notification, which notifies the developer to decide whether to approve the test stack and create the production stack. The emails is referred from the parameters above.
 
-### CodeBuild:
+#### CodeBuild:
 It defines how the lambda code should be built and complied, including the OS version, compiler and dependencies.
 
-### Source:
+#### Source:
 ```
 Type: CODEPIPELINE
 BuildSpec: 'market-data-downloader-clean-test-files/buildspec.yaml'
@@ -62,7 +62,7 @@ BuildSpec: 'market-data-downloader-clean-test-files/buildspec.yaml'
 The `buildspec.yaml` defines how the lambda will be built
 
 
-### Pipeline:
+#### Pipeline:
 It is the whole procedure of creating this stack.
 
 * Fetch source file:
@@ -107,19 +107,19 @@ It is the whole procedure of creating this stack.
 	* ExecuteChangeSet:
 	It execute the ChangeSet once the developer manually approves the changes.
 
-	Outputs (ArtifactBucket):
+###Outputs (ArtifactBucket):
 	It defines a S3 bucket holding all the OutputArtifacts of any pipeline stage.
 
-`cloudformation/lambda.cfn.yaml`:
+##cloudformation/lambda.cfn.yaml:
 	This CloudFormation template is invoked by the CodePipeline in `xxx.cfn.yaml`.
-	Parameters:
+###Parameters:
 		These are the S3 bucket paths of the built lambda and the paths are passed from `xxx.cfn.yaml`.
-	Resources:
+###Resources:
           These resources are used to define SQS, SNS, Permission and deploy lambdas.
-	Outputs:
+###Outputs:
 		The identities of some components (e.g. The ARN of every lambda)
 
-A little story:
+#A little story:
 * The whole procedure is about a master (`xxx.cfn.yaml`) assigning a task of repairing an old house (a running production stack) to a worker (`lambda.cfn.yaml`).
 * The master needs to buy some raw materials (fetch source file) and turn these materials into mortar (build lambda using CodeBuild).
 * Afterwards, the master tells the worker where the mortar is (pass artifacts to `lambda.cfn.yaml`) and ask him to build a prototype(the test stack).
@@ -132,7 +132,7 @@ A little story:
 Note:
 	When there is no old house (existing production stack), repairing an old house becomes building a house (creating a production stack).
 
-Conclusion:
+#Conclusion:
 	In general, there is a top level cloudformation template that creates the codepipeline that is then used to run the lower level template that deploys the built lambdas
 
 Note:

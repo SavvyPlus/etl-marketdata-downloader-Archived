@@ -119,7 +119,7 @@ These resources are used to define SQS, SNS, Permission and deploy lambdas.
 ### Outputs:
 The identities of some components (e.g. The ARN of every lambda)
 
-#A little story:
+# A little story:
 * The whole procedure is about a master (`xxx.cfn.yaml`) assigning a task of repairing an old house (a running production stack) to a worker (`lambda.cfn.yaml`).
 * The master needs to buy some raw materials (fetch source file) and turn these materials into mortar (build lambda using CodeBuild).
 * Afterwards, the master tells the worker where the mortar is (pass artifacts to `lambda.cfn.yaml`) and ask him to build a prototype(the test stack).
@@ -132,7 +132,7 @@ The identities of some components (e.g. The ARN of every lambda)
 Note:
 	When there is no old house (existing production stack), repairing an old house becomes building a house (creating a production stack).
 
-#Conclusion:
+# Conclusion:
 	In general, there is a top level cloudformation template that creates the codepipeline that is then used to run the lower level template that deploys the built lambdas
 
 Note:

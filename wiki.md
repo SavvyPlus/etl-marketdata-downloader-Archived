@@ -107,16 +107,16 @@ It is the whole procedure of creating this stack.
 	* ExecuteChangeSet:
 	It execute the ChangeSet once the developer manually approves the changes.
 
-###Outputs (ArtifactBucket):
+### Outputs (ArtifactBucket):
 It defines a S3 bucket holding all the OutputArtifacts of any pipeline stage.
 
-##cloudformation/lambda.cfn.yaml:
+## cloudformation/lambda.cfn.yaml:
 This CloudFormation template is invoked by the CodePipeline in `xxx.cfn.yaml`.
-###Parameters:
+### Parameters:
 These are the S3 bucket paths of the built lambda and the paths are passed from `xxx.cfn.yaml`.
-###Resources:
+### Resources:
 These resources are used to define SQS, SNS, Permission and deploy lambdas.
-###Outputs:
+### Outputs:
 The identities of some components (e.g. The ARN of every lambda)
 
 #A little story:

@@ -37,7 +37,7 @@ This section explains the two main CloudFormation templates: `xxx.cfn.yaml` and 
 `xxx.cfn.yaml` is the main CloudFormation configuration file which defines the overall CloudFormation stack. This file creates the common AWS IAM permissions for the lambdas, defines general parameters, defines the build steps to build the lambdas and specifies an AWS CodePipeline with various stages. It consists of sections: Parameters, Metadata, Resources, Roles etc.
 
 ### Parameters:
-These are configuration parameters with default values and they are accessible within the xxx.cfn.yaml. For example, "ArtifactBucket" defines the name of S3 bucket for storing pipeline artifacts. When creating the stack using the CloudFormation console, we can change these values.
+These are configuration parameters with default values and they are accessible within the `xxx.cfn.yaml`. For example, `ArtifactBucket` defines the name of S3 bucket for storing pipeline artifacts. When creating the stack using the CloudFormation console, we can change these values.
 
 ### Metadata(AWS::CloudFormation::Interface):
 It defines how parameters are grouped and sorted in the AWS CloudFormation console.
@@ -54,8 +54,8 @@ It is used to send CodePipeline notification, which notifies the developer to de
 #### CodeBuild:
 It defines how the lambda code should be built and complied, including the OS version, compiler and dependencies.
 
-#### Source:
 ```
+Source:
 Type: CODEPIPELINE
 BuildSpec: 'market-data-downloader-clean-test-files/buildspec.yaml'
 ```
@@ -68,11 +68,11 @@ It is the whole procedure of creating this stack.
 * Fetch source file:
 	The pipeline fetches everything in a git repository including source code and YAML files etc. The output of this stage is given the name SourceCode and this is then available to the following stages in the pipeline.
 * Build lambda:
-	This stage uses the output (SourceCode) of the previous stage to compile the lambda code. And it references the previously defined CodeBuild step (e.g.Configuration: ProjectName: !Ref CodeBuildDownloaderLambda) and after execution the output of this is called BuildYYYLambdaOutput (YYY is the name of the corresponding lambda function), which is a package of compiled code and can be used in later stages of the pipeline.
+	This stage uses the output (SourceCode) of the previous stage to compile the lambda code. And it references the previously defined CodeBuild step (e.g.`Configuration: ProjectName: !Ref CodeBuildDownloaderLambda`) and after execution the output of this is called `BuildYYYLambdaOutput` (YYY is the name of the corresponding lambda function), which is a package of compiled code and can be used in later stages of the pipeline.
 * TestStage:
 	* CreateLambdasAndDependencies:
 
-		It execute another CloudFormation template lambda.cfn.yaml which is responsible for deploying the lambdas built earlier in the CodePipeline and the dependencies that these lambdas rely on. In other words, this stage uses lambda.cfn.yaml to create the test stack (deploy all the lambdas and SNS, CloudWatchEvent...) and the deployment details are stored in lambda.cfn.yaml. Therefore, this stage should pass the location of artifacts (built lambda packages) to the Parameters section in lambda.cfn.yaml, which is achieved via the InputArtifacts section and the ParameterOverrides section.
+		It execute another CloudFormation template `lambda.cfn.yaml` which is responsible for deploying the lambdas built earlier in the CodePipeline and the dependencies that these lambdas rely on. In other words, this stage uses `lambda.cfn.yaml` to create the test stack (deploy all the lambdas and SNS, CloudWatchEvent...) and the deployment details are stored in lambda.cfn.yaml. Therefore, this stage should pass the location of artifacts (built lambda packages) to the Parameters section in lambda.cfn.yaml, which is achieved via the `InputArtifacts` section and the `ParameterOverrides` section.
 
 	* ApproveTestStack:
 
@@ -86,7 +86,7 @@ It is the whole procedure of creating this stack.
 
   * DeleteCleanupStack:
 
-    asdada
+    
 
   * DeleteTestStack:
 
@@ -126,7 +126,7 @@ The identities of some components (e.g. The ARN of every lambda)
 * The worker knows how to do his job(the details in lambda.cfn.yaml).
 * Once the worker finishes the prototype, he asks (SNS notification) the master to come to the construction site (CodePipeline console) and the master decides
 * whether to approve the prototype (ApproveTestStack).
-* Once the master approves, the prototype will be destroyed by a terminator called "clean-test-files".
+* Once the master approves, the prototype will be destroyed by a terminator called `clean-test-files`.
 * Then, the master asks the worker to capture the difference between the prototype and the old house and then repair the old house by applying the difference (executing ChangeSet). Mission completed!
 
 Note:
@@ -135,6 +135,6 @@ Note:
 # Conclusion:
 	In general, there is a top level cloudformation template that creates the codepipeline that is then used to run the lower level template that deploys the built lambdas
 
-Note:
+
 # Partition
 The partition lambda is for partitioning the data in Athena for downloaders that push their data to Athena.
